@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>Movy → Trakt sign-in</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font: 16px/1.55 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #101216;
+      color: #f3f4f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: radial-gradient(ellipse at 50% 0%, #442027 0, #19191d 42%, #101216 78%);
+    }
+    main {
+      width: min(100%, 560px);
+      padding: clamp(24px, 6vw, 42px);
+      border: 1px solid #ffffff20;
+      border-radius: 20px;
+      background: #191b20eF;
+      box-shadow: 0 24px 80px #0008;
+    }
+    .eyebrow {
+      margin: 0 0 8px;
+      color: #ff6b74;
+      font-size: .75rem;
+      font-weight: 750;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+    h1 { margin: 0; font-size: clamp(1.7rem, 5vw, 2.25rem); letter-spacing: -.035em; }
+    p { color: #c4c6cc; }
+    #status {
+      margin: 24px 0 12px;
+      padding: 14px 16px;
+      border: 1px solid #ffffff18;
+      border-radius: 12px;
+      background: #ffffff08;
+      color: #f3f4f6;
+    }
+    #fallback { display: none; margin-top: 20px; }
+    label { display: block; margin-bottom: 8px; font-weight: 650; }
+    textarea {
+      width: 100%;
+      min-height: 92px;
+      resize: vertical;
+      padding: 12px;
+      border: 1px solid #ffffff2a;
+      border-radius: 10px;
+      background: #0e1014;
+      color: #f3f4f6;
+      font: 12px/1.45 ui-monospace, SFMono-Regular, Consolas, monospace;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 15px;
+      border: 0;
+      border-radius: 9px;
+      background: #e50914;
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button:focus-visible, textarea:focus-visible { outline: 3px solid #ff7b82; outline-offset: 3px; }
+    .hint { margin-bottom: 0; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">Movy watched sync</p>
+    <h1>Trakt sign-in</h1>
+    <p id="status" role="status" aria-live="polite">Checking the authorization response…</p>
+    <p class="hint">This page only passes the sign-in result back to the Movy userscript. It does not store or transmit your Trakt tokens.</p>
+    <section id="fallback">
+      <label for="callback-url">If the popup did not close, copy this callback URL and paste it into “Trakt: Finish sign-in from callback URL” in the userscript menu.</label>
+      <textarea id="callback-url" readonly></textarea>
+      <button id="copy-url" type="button">Copy callback URL</button>
+    </section>
+  </main>
+  <script>
+    (function () {
+      'use strict';
+      var params = new URLSearchParams(location.search);
+      var data = {
+        type: 'movy-trakt-oauth',
+        code: params.get('code'),
+        state: params.get('state'),
+        error: params.get('error')
+      };
+      var status = document.getElementById('status');
+      var fallback = document.getElementById('fallback');
+      var originalUrl = location.href;
+      var openerAvailable = false;
+
+      if (!data.state || (!data.code && !data.error)) {
+        status.textContent = 'No complete Trakt authorization response was found. Return to Movy and start Connect Trakt again.';
+        return;
+      }
+
+      if (window.opener && !window.opener.closed) {
+        try {
+          window.opener.postMessage(data, 'https://movy.sx');
+          window.opener.postMessage(data, 'https://www.movy.sx');
+          openerAvailable = true;
+          status.textContent = 'Authorization response sent securely. This popup should close automatically.';
+        } catch (error) {
+          status.textContent = 'The response could not be sent to Movy. Use the callback URL below instead.';
+        }
+      } else {
+        status.textContent = 'The Movy tab was not detected. Use the callback URL below to finish sign-in manually.';
+      }
+
+      fallback.style.display = 'block';
+      document.getElementById('callback-url').value = originalUrl;
+      document.getElementById('copy-url').addEventListener('click', function () {
+        var field = document.getElementById('callback-url');
+        field.focus();
+        field.select();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(originalUrl).then(function () {
+            status.textContent = 'Callback URL copied. Paste it into the userscript menu on Movy.';
+          }).catch(function () {
+            status.textContent = 'Select and copy the callback URL, then paste it into the userscript menu on Movy.';
+          });
+        } else {
+          try { document.execCommand('copy'); status.textContent = 'Callback URL copied. Paste it into the userscript menu on Movy.'; }
+          catch (error) { status.textContent = 'Select and copy the callback URL, then paste it into the userscript menu on Movy.'; }
+        }
+      });
+
+      if (openerAvailable) {
+        history.replaceState(null, '', location.pathname);
+        window.setTimeout(function () {
+          if (!window.closed) status.textContent = 'If the popup did not close, paste the callback URL shown below into the userscript menu on Movy.';
+        }, 1800);
+      }
+    })();
+  </script>
+</body>
+</html>
